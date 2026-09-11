@@ -30,17 +30,33 @@ export interface User {
   email: string;
   currency: string;
   monthlyBudget: number;
+  budgetWarningThreshold?: number; // default 80 (%)
+  enableBudgetAlerts?: boolean; // default true
   avatarUrl?: string;
+}
+
+export interface BudgetStatus {
+  monthlyBudget: number;
+  currentMonthExpense: number;
+  totalExpense: number;
+  percentUsed: number;
+  isApproaching: boolean;
+  isExceeded: boolean;
+  remainingBudget: number;
+  overBudgetAmount: number;
+  thresholdPercent: number;
 }
 
 export interface FinancialSummary {
   totalIncome: number;
   totalExpense: number;
+  currentMonthExpense: number;
   netBalance: number;
   savingsRate: number;
   expenseCount: number;
   incomeCount: number;
   topExpenseCategory: string;
+  budgetStatus: BudgetStatus;
 }
 
 export interface CSharpSourceFile {
@@ -66,4 +82,4 @@ export interface ApiCallLog {
   sqlEquivalent: string;
 }
 
-export type AppView = 'dashboard' | 'transactions' | 'reports' | 'csharp_backend' | 'task_guide';
+export type AppView = 'dashboard' | 'transactions' | 'reports';

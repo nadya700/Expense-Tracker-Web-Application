@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TransactionType } from '../types';
+import { BudgetAlertBanner } from './BudgetAlertBanner';
 
 export const TransactionsView: React.FC = () => {
   const { 
@@ -36,7 +37,6 @@ export const TransactionsView: React.FC = () => {
   const [selectedType, setSelectedType] = useState<'all' | TransactionType>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
-  const [showDbInspector, setShowDbInspector] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -157,26 +157,19 @@ export const TransactionsView: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>{language === 'az' ? 'Xərc Əlavə Et' : 'Add Expense'}</span>
           </button>
-
-          <button
-            onClick={() => setShowDbInspector(!showDbInspector)}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${
-              showDbInspector ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            <Database className="w-4 h-4 text-indigo-600" />
-            <span>{language === 'az' ? 'DB Sxem' : 'DB Schema'}</span>
-          </button>
         </div>
       </div>
 
-      {/* Database Operations Bar (Step 3: Database Persistence) */}
+      {/* Dynamic Budget Alert Banner if Approaching or Exceeded */}
+      <BudgetAlertBanner />
+
+      {/* Data Management Bar */}
       <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 text-slate-600">
           <Database className="w-4 h-4 text-indigo-600" />
-          <span className="font-semibold">{language === 'az' ? 'Məlumat Bazası:' : 'Database Storage:'}</span>
-          <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono text-slate-700">
-            SQLite / LocalStorage ({transactions.length} qeyd)
+          <span className="font-semibold">{language === 'az' ? 'Məlumat Yaddaşı:' : 'Data Storage:'}</span>
+          <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-medium text-slate-700">
+            {transactions.length} {language === 'az' ? 'qeyd saxlanılır' : 'records saved'}
           </span>
         </div>
 
@@ -216,54 +209,6 @@ export const TransactionsView: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* Database Schema Inspector Dropdown */}
-      {showDbInspector && (
-        <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Database className="w-5 h-5 text-indigo-400" />
-              <h3 className="font-bold text-sm text-indigo-200">
-                Step 3: Database Schema & Entity Framework Mapping
-              </h3>
-            </div>
-            <span className="text-xs text-slate-400 font-mono">Table: Expenses & Users</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
-              <div className="text-emerald-400 font-bold mb-2">-- SQL Schema (SQLite / SQL Server)</div>
-              <pre className="text-slate-300 leading-relaxed overflow-x-auto">
-{`CREATE TABLE Expenses (
-  Id NVARCHAR(50) PRIMARY KEY,
-  Title NVARCHAR(200) NOT NULL,
-  Amount DECIMAL(18,2) NOT NULL,
-  Type NVARCHAR(20) NOT NULL,
-  Category NVARCHAR(50) NOT NULL,
-  Date DATETIME NOT NULL,
-  PaymentMethod NVARCHAR(50),
-  Notes NVARCHAR(500),
-  UserId NVARCHAR(50) NOT NULL,
-  CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (UserId) REFERENCES Users(Id)
-);`}
-              </pre>
-            </div>
-
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
-              <div className="text-cyan-400 font-bold mb-2">// C# EF Core LINQ Query Execution</div>
-              <pre className="text-slate-300 leading-relaxed overflow-x-auto">
-{`// Asynchronously query database
-var records = await _context.Expenses
-  .Where(e => e.UserId == currentUserId)
-  .Where(e => type == null || e.Type == type)
-  .OrderByDescending(e => e.Date)
-  .ToListAsync();`}
-              </pre>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Filters & Search Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">

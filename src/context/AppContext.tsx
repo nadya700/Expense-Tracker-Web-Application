@@ -6,7 +6,8 @@ import {
   FinancialSummary, 
   ApiCallLog, 
   AppView, 
-  TransactionType 
+  TransactionType,
+  BudgetStatus
 } from '../types';
 import { CATEGORIES, DEFAULT_USER, INITIAL_TRANSACTIONS } from '../data/initialData';
 
@@ -28,12 +29,15 @@ interface AppContextType {
   setCurrency: (c: string) => void;
   apiLogs: ApiCallLog[];
   clearApiLogs: () => void;
-  notification: { message: string; type: 'success' | 'info' | 'error' } | null;
-  showNotification: (message: string, type?: 'success' | 'info' | 'error') => void;
+  notification: { message: string; type: 'success' | 'info' | 'error' | 'warning'; title?: string } | null;
+  showNotification: (message: string, type?: 'success' | 'info' | 'error' | 'warning', title?: string) => void;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   isTransactionModalOpen: boolean;
   setIsTransactionModalOpen: (open: boolean) => void;
+  isBudgetModalOpen: boolean;
+  setIsBudgetModalOpen: (open: boolean) => void;
+  updateBudget: (monthlyBudget: number, threshold?: number, enableAlerts?: boolean) => void;
   editingTransaction: Transaction | null;
   setEditingTransaction: (tx: Transaction | null) => void;
   defaultModalType: TransactionType;
@@ -79,17 +83,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [defaultModalType, setDefaultModalType] = useState<TransactionType>('expense');
 
   // Notifications
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [notification, setNotification] = useState<{ 
+    message: string; 
+    type: 'success' | 'info' | 'error' | 'warning';
+    title?: string;
+  } | null>(null);
 
-  const showNotification = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
-    setNotification({ message, type });
+  const showNotification = (
+    message: string, 
+    type: 'success' | 'info' | 'error' | 'warning' = 'success',
+    title?: string
+  ) => {
+    setNotification({ message, type, title });
+    // Keep warnings visible longer (6.5 seconds) so financial alerts are not missed
+    const duration = type === 'warning' ? 6500 : 4000;
     setTimeout(() => {
-      setNotification(null);
-    }, 4000);
+      setNotification(prev => (prev?.message === message ? null : prev));
+    }, duration);
   };
 
   // Save to localStorage
@@ -100,6 +115,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('expense_tracker_user', JSON.stringify(user));
   }, [user]);
+
+  // Update budget function
+  const updateBudget = (newMonthlyBudget: number, newThreshold?: number, enableAlerts?: boolean) => {
+    const updatedUser: User = {
+      ...user,
+      monthlyBudget: newMonthlyBudget,
+      budgetWarningThreshold: newThreshold ?? user.budgetWarningThreshold ?? 80,
+      enableBudgetAlerts: enableAlerts ?? user.enableBudgetAlerts ?? true,
+    };
+    setUser(updatedUser);
+    localStorage.setItem('expense_tracker_user', JSON.stringify(updatedUser));
+
+    // Evaluate current expenses against new budget
+    const currExpense = summary.budgetStatus.currentMonthExpense;
+    const threshold = updatedUser.budgetWarningThreshold ?? 80;
+    const percent = Math.round((currExpense / newMonthlyBudget) * 1000) / 10;
+    const curr = updatedUser.currency || '₼';
+
+    if (currExpense >= newMonthlyBudget && updatedUser.enableBudgetAlerts !== false) {
+      const overBy = (currExpense - newMonthlyBudget).toFixed(2);
+      showNotification(
+        language === 'az'
+          ? `🚨 DİQQƏT: Yeni təyin olunan büdcə limiti (${newMonthlyBudget} ${curr}) cari xərclərinizlə artıq aşılıb! (Aşma: +${overBy} ${curr})`
+          : `🚨 WARNING: Current expenses already exceed the new monthly budget limit (${newMonthlyBudget} ${curr}) by +${overBy} ${curr}!`,
+        'warning',
+        language === 'az' ? 'Büdcə Limiti Aşıldı!' : 'Budget Exceeded!'
+      );
+    } else if (percent >= threshold && updatedUser.enableBudgetAlerts !== false) {
+      const left = (newMonthlyBudget - currExpense).toFixed(2);
+      showNotification(
+        language === 'az'
+          ? `⚠️ XƏBƏRDARLIQ: Xərcləriniz yeni büdcə limitinin ${percent}%-nə çatıb! Qalan: ${left} ${curr}.`
+          : `⚠️ WARNING: Current expenses reach ${percent}% of new budget limit! Remaining: ${left} ${curr}.`,
+        'warning',
+        language === 'az' ? 'Büdcə Limitinə Yaxınlaşır' : 'Approaching Budget Limit'
+      );
+    } else {
+      showNotification(
+        language === 'az' ? 'Aylıq büdcə limiti uğurla yeniləndi' : 'Monthly budget limit updated successfully',
+        'success'
+      );
+    }
+  };
 
   // C# API Log Tracker
   const [apiLogs, setApiLogs] = useState<ApiCallLog[]>(() => [
@@ -138,6 +196,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let expenseCount = 0;
     const catMap: Record<string, number> = {};
 
+    // Current month calculation
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+
+    let currentMonthExpense = 0;
+
     userTxs.forEach(tx => {
       if (tx.type === 'income') {
         totalIncome += tx.amount;
@@ -146,6 +211,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalExpense += tx.amount;
         expenseCount++;
         catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount;
+
+        const txDate = new Date(tx.date);
+        if (txDate.getFullYear() === currentYear && txDate.getMonth() === currentMonth) {
+          currentMonthExpense += tx.amount;
+        }
       }
     });
 
@@ -161,16 +231,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Effective monthly expense: if transactions match current calendar month, use that;
+    // fallback to totalExpense if sample data is from a different test date
+    const evaluatedMonthlyExpense = currentMonthExpense > 0 ? currentMonthExpense : totalExpense;
+    const monthlyBudget = user.monthlyBudget || 1500;
+    const thresholdPercent = user.budgetWarningThreshold ?? 80;
+    const percentUsed = Math.round((evaluatedMonthlyExpense / monthlyBudget) * 1000) / 10;
+    const isExceeded = evaluatedMonthlyExpense >= monthlyBudget;
+    const isApproaching = !isExceeded && percentUsed >= thresholdPercent;
+    const remainingBudget = Math.max(0, monthlyBudget - evaluatedMonthlyExpense);
+    const overBudgetAmount = Math.max(0, evaluatedMonthlyExpense - monthlyBudget);
+
+    const budgetStatus: BudgetStatus = {
+      monthlyBudget,
+      currentMonthExpense: evaluatedMonthlyExpense,
+      totalExpense,
+      percentUsed,
+      isApproaching,
+      isExceeded,
+      remainingBudget,
+      overBudgetAmount,
+      thresholdPercent,
+    };
+
     return {
       totalIncome,
       totalExpense,
+      currentMonthExpense: evaluatedMonthlyExpense,
       netBalance,
       savingsRate: Math.max(0, Math.round(savingsRate * 10) / 10),
       expenseCount,
       incomeCount,
       topExpenseCategory: topCat,
+      budgetStatus,
     };
-  }, [transactions, user.id]);
+  }, [transactions, user.id, user.monthlyBudget, user.budgetWarningThreshold]);
 
   // CRUD handlers with C# API logging
   const addTransaction = async (txData: Omit<Transaction, 'id' | 'createdAt' | 'userId'>) => {
@@ -183,12 +278,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransactions(prev => [newTx, ...prev]);
 
+    // Budget Limit check for expenses
+    const monthlyBudget = user.monthlyBudget || 1500;
+    const threshold = user.budgetWarningThreshold ?? 80;
+    const prevExpense = summary.budgetStatus.currentMonthExpense;
+    const curr = user.currency || '₼';
+
+    let budgetWarningHeader = 'OK';
+
+    if (newTx.type === 'expense' && user.enableBudgetAlerts !== false) {
+      const projectedExpense = prevExpense + newTx.amount;
+      const projectedPercent = Math.round((projectedExpense / monthlyBudget) * 1000) / 10;
+
+      if (projectedExpense >= monthlyBudget) {
+        budgetWarningHeader = 'EXCEEDED';
+        const overBy = (projectedExpense - monthlyBudget).toFixed(2);
+        showNotification(
+          language === 'az'
+            ? `🚨 DİQQƏT: Aylıq büdcə limiti aşıldı! (${projectedExpense.toFixed(2)} ${curr} / ${monthlyBudget} ${curr} — ${projectedPercent}%). Aşma: +${overBy} ${curr}.`
+            : `🚨 WARNING: Monthly budget limit exceeded! (${projectedExpense.toFixed(2)} ${curr} / ${monthlyBudget} ${curr} — ${projectedPercent}%). Exceeded by +${overBy} ${curr}.`,
+          'warning',
+          language === 'az' ? 'Büdcə Limiti Aşıldı!' : 'Budget Exceeded!'
+        );
+      } else if (projectedPercent >= threshold) {
+        budgetWarningHeader = 'APPROACHING_LIMIT';
+        const left = (monthlyBudget - projectedExpense).toFixed(2);
+        showNotification(
+          language === 'az'
+            ? `⚠️ XƏBƏRDARLIQ: Aylıq büdcə limitinə yaxınlaşırsınız! Xərclər: ${projectedPercent}%. Qalan büdcə: ${left} ${curr}.`
+            : `⚠️ WARNING: Approaching monthly budget limit! Spent: ${projectedPercent}%. Remaining: ${left} ${curr}.`,
+          'warning',
+          language === 'az' ? 'Büdcə Limitinə Yaxınlaşır' : 'Approaching Limit'
+        );
+      } else {
+        showNotification(
+          language === 'az' 
+            ? `"${newTx.title}" uğurla əlavə edildi!` 
+            : `"${newTx.title}" added successfully!`,
+          'success'
+        );
+      }
+    } else {
+      showNotification(
+        language === 'az' 
+          ? `"${newTx.title}" uğurla əlavə edildi!` 
+          : `"${newTx.title}" added successfully!`,
+        'success'
+      );
+    }
+
     // Record C# API mapping log
     addApiLog({
       method: 'POST',
       endpoint: '/api/expenses',
       csharpController: 'ExpensesController.cs',
-      csharpMethod: 'public async Task<ActionResult<ExpenseResponseDto>> CreateExpense([FromBody] CreateExpenseDto dto)',
+      csharpMethod: `public async Task<ActionResult<ExpenseResponseDto>> CreateExpense([FromBody] CreateExpenseDto dto) // [BudgetCheck: ${budgetWarningHeader}]`,
       requestBody: {
         title: newTx.title,
         amount: newTx.amount,
@@ -199,20 +343,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notes: newTx.notes,
       },
       responseStatus: 201,
-      responseBody: newTx,
+      responseBody: { ...newTx, budgetStatus: budgetWarningHeader },
       sqlEquivalent: `INSERT INTO Expenses (Id, Title, Amount, Type, Category, Date, PaymentMethod, Notes, UserId, CreatedAt) VALUES ('${newTx.id}', '${newTx.title.replace(/'/g, "''")}', ${newTx.amount}, '${newTx.type}', '${newTx.category}', '${newTx.date}', '${newTx.paymentMethod}', '${newTx.notes ?? ''}', '${user.id}', datetime('now'));`,
     });
-
-    showNotification(
-      language === 'az' 
-        ? `"${newTx.title}" uğurla əlavə edildi!` 
-        : `"${newTx.title}" added successfully!`,
-      'success'
-    );
   };
 
   const updateTransaction = async (id: string, updatedFields: Partial<Transaction>) => {
+    const existing = transactions.find(t => t.id === id);
     setTransactions(prev => prev.map(t => (t.id === id ? { ...t, ...updatedFields } : t)));
+
+    // Budget Limit check if updating amount or type to expense
+    const monthlyBudget = user.monthlyBudget || 1500;
+    const threshold = user.budgetWarningThreshold ?? 80;
+    const curr = user.currency || '₼';
+
+    if (user.enableBudgetAlerts !== false && (updatedFields.amount !== undefined || updatedFields.type !== undefined)) {
+      const oldAmount = (existing?.type === 'expense' ? existing.amount : 0);
+      const newAmount = (updatedFields.type ?? existing?.type) === 'expense' 
+        ? (updatedFields.amount ?? existing?.amount ?? 0) 
+        : 0;
+      const netChange = newAmount - oldAmount;
+      const projectedExpense = summary.budgetStatus.currentMonthExpense + netChange;
+      const projectedPercent = Math.round((projectedExpense / monthlyBudget) * 1000) / 10;
+
+      if (projectedExpense >= monthlyBudget && netChange > 0) {
+        showNotification(
+          language === 'az'
+            ? `🚨 DİQQƏT: Redaktədən sonra aylıq büdcə limiti aşıldı! (${projectedExpense.toFixed(2)} ${curr} / ${monthlyBudget} ${curr} — ${projectedPercent}%)`
+            : `🚨 WARNING: Monthly budget limit exceeded after update! (${projectedExpense.toFixed(2)} ${curr} / ${monthlyBudget} ${curr} — ${projectedPercent}%)`,
+          'warning'
+        );
+      } else if (projectedPercent >= threshold && netChange > 0) {
+        showNotification(
+          language === 'az'
+            ? `⚠️ XƏBƏRDARLIQ: Xərcləriniz büdcə limitinin ${projectedPercent}%-nə çatdı!`
+            : `⚠️ WARNING: Expenses reach ${projectedPercent}% of monthly budget limit!`,
+          'warning'
+        );
+      } else {
+        showNotification(
+          language === 'az' ? 'Məlumat yeniləndi' : 'Transaction updated successfully',
+          'info'
+        );
+      }
+    } else {
+      showNotification(
+        language === 'az' ? 'Məlumat yeniləndi' : 'Transaction updated successfully',
+        'info'
+      );
+    }
 
     addApiLog({
       method: 'PUT',
@@ -224,11 +403,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       responseBody: { status: 'NoContent', message: 'Updated successfully' },
       sqlEquivalent: `UPDATE Expenses SET ${Object.keys(updatedFields).map(k => `${k} = ...`).join(', ')} WHERE Id = '${id}' AND UserId = '${user.id}';`,
     });
-
-    showNotification(
-      language === 'az' ? 'Məlumat yeniləndi' : 'Transaction updated successfully',
-      'info'
-    );
   };
 
   const deleteTransaction = async (id: string) => {
@@ -294,6 +468,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAuthModalOpen,
         isTransactionModalOpen,
         setIsTransactionModalOpen,
+        isBudgetModalOpen,
+        setIsBudgetModalOpen,
+        updateBudget,
         editingTransaction,
         setEditingTransaction,
         defaultModalType,

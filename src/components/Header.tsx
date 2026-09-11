@@ -11,7 +11,11 @@ import {
   User as UserIcon, 
   LogOut, 
   Globe, 
-  Coins
+  Coins,
+  Target,
+  AlertTriangle,
+  ShieldAlert,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AppView } from '../types';
@@ -26,17 +30,18 @@ export const Header: React.FC = () => {
     currency, 
     setCurrency, 
     openNewTransactionModal,
-    setIsAuthModalOpen
+    setIsAuthModalOpen,
+    summary,
+    setIsBudgetModalOpen
   } = useApp();
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const { budgetStatus } = summary;
 
   const navItems: { id: AppView; labelAz: string; labelEn: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'dashboard', labelAz: 'İdarə Paneli', labelEn: 'Dashboard', icon: LayoutDashboard },
     { id: 'transactions', labelAz: 'Xərclər və Gəlirlər', labelEn: 'Transactions', icon: ListOrdered },
     { id: 'reports', labelAz: 'Hesabatlar', labelEn: 'Reports', icon: BarChart3 },
-    { id: 'csharp_backend', labelAz: 'C# .NET Backend', labelEn: 'C# .NET Backend', icon: FileCode },
-    { id: 'task_guide', labelAz: 'Task 3 Bələdçisi', labelEn: 'Task 3 Guide', icon: CheckCircle2 },
   ];
 
   const currencies = [
@@ -64,9 +69,6 @@ export const Header: React.FC = () => {
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-lg text-slate-900 tracking-tight">ExpenseTracker</span>
-                  <span className="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-indigo-200">
-                    C# .NET 8
-                  </span>
                 </div>
                 <p className="text-[11px] text-slate-500 font-medium">
                   {language === 'az' ? 'Gəlir, Xərc və Maliyyə İdarəetməsi' : 'Income, Expense & Financial Summaries'}
@@ -92,9 +94,6 @@ export const Header: React.FC = () => {
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
                   <span>{language === 'az' ? item.labelAz : item.labelEn}</span>
-                  {item.id === 'csharp_backend' && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  )}
                 </button>
               );
             })}
@@ -124,6 +123,32 @@ export const Header: React.FC = () => {
                 <span>{language === 'az' ? 'Xərc Əlavə Et' : 'Add Expense'}</span>
               </button>
             </div>
+
+            {/* Quick Budget Limit Trigger */}
+            <button
+              id="btn-header-budget-status"
+              onClick={() => setIsBudgetModalOpen(true)}
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                budgetStatus.isExceeded
+                  ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 shadow-2xs'
+                  : budgetStatus.isApproaching
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 shadow-2xs'
+                  : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border-slate-200'
+              }`}
+              title={language === 'az' ? 'Aylıq Büdcə Limiti və Xəbərdarlıqlar' : 'Monthly Budget Limit & Alerts'}
+            >
+              {budgetStatus.isExceeded ? (
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+              ) : budgetStatus.isApproaching ? (
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              ) : (
+                <Target className="w-3.5 h-3.5 text-slate-500" />
+              )}
+              <span>{budgetStatus.percentUsed}%</span>
+              <span className="hidden lg:inline text-[10px] opacity-75">
+                ({budgetStatus.currentMonthExpense.toFixed(0)}/{budgetStatus.monthlyBudget} {currency})
+              </span>
+            </button>
 
             {/* Currency Selector */}
             <div className="relative group">
@@ -191,12 +216,27 @@ export const Header: React.FC = () => {
                     <button
                       onClick={() => {
                         setIsProfileMenuOpen(false);
+                        setIsBudgetModalOpen(true);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded-lg flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Target className="w-4 h-4 text-indigo-600" />
+                        <span>{language === 'az' ? 'Aylıq Büdcə Limiti' : 'Monthly Budget Limit'}</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-500 text-[11px]">
+                        {user.monthlyBudget} {currency}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
                         setIsAuthModalOpen(true);
                       }}
                       className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-2"
                     >
                       <UserIcon className="w-4 h-4 text-slate-400" />
-                      <span>{language === 'az' ? 'Profil və Büdcə Tənzimləmələri' : 'Profile & Budget Settings'}</span>
+                      <span>{language === 'az' ? 'Profil Məlumatları' : 'Profile Settings'}</span>
                     </button>
                     <button
                       onClick={() => {

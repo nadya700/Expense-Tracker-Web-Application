@@ -321,34 +321,6 @@ export const ReportsView: React.FC = () => {
 
       </div>
 
-      {/* C# LINQ Query Explanation for Reports */}
-      <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-300">
-            C# LINQ Aggregation & Report Generation (Step 4)
-          </h4>
-        </div>
-        <p className="text-xs text-slate-400 mb-3">
-          {language === 'az' 
-            ? 'Bu hesabatlar C# ASP.NET Core-da Entity Framework Core və LINQ GroupBy operatorları ilə bazadan dinamik toplanır:' 
-            : 'These analytical reports are aggregated dynamically via C# LINQ GroupBy statements in ASP.NET Core:'}
-        </p>
-        <pre className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] font-mono text-emerald-300 overflow-x-auto">
-{`// C# ASP.NET Core LINQ Query for Category Grouping:
-var report = await _context.Expenses
-    .Where(e => e.UserId == userId && e.Type == "expense")
-    .GroupBy(e => e.Category)
-    .Select(g => new CategoryReportDto {
-        Category = g.Key,
-        TotalAmount = g.Sum(x => x.Amount),
-        Count = g.Count()
-    })
-    .OrderByDescending(r => r.TotalAmount)
-    .ToListAsync();`}
-        </pre>
-      </div>
-
     </div>
   );
 };

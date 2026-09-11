@@ -670,6 +670,18 @@ public record ExpenseResponseDto
     public DateTime CreatedAt { get; init; }
 }
 
+public record BudgetStatusDto
+{
+    public decimal MonthlyBudget { get; init; }
+    public decimal CurrentMonthExpense { get; init; }
+    public decimal RemainingBudget { get; init; }
+    public decimal OverBudgetAmount { get; init; }
+    public double PercentUsed { get; init; }
+    public bool IsApproaching { get; init; }
+    public bool IsExceeded { get; init; }
+    public int WarningThreshold { get; init; } = 80;
+}
+
 public record FinancialSummaryDto
 {
     public decimal TotalIncome { get; init; }
@@ -679,6 +691,7 @@ public record FinancialSummaryDto
     public int IncomeCount { get; init; }
     public int ExpenseCount { get; init; }
     public string TopExpenseCategory { get; init; } = string.Empty;
+    public BudgetStatusDto? BudgetStatus { get; init; }
 }
 
 public record LoginDto(
@@ -691,7 +704,8 @@ public record RegisterDto(
     [Required, EmailAddress] string Email,
     [Required, MinLength(6)] string Password,
     string? Currency,
-    decimal MonthlyBudget
+    decimal MonthlyBudget,
+    int? BudgetWarningThreshold
 );
 
 public record AuthResponseDto
@@ -707,6 +721,8 @@ public record UserDto
     public string Email { get; init; } = string.Empty;
     public string Currency { get; init; } = "₼";
     public decimal MonthlyBudget { get; init; }
+    public int BudgetWarningThreshold { get; init; } = 80;
+    public bool EnableBudgetAlerts { get; init; } = true;
 }
 `,
   },

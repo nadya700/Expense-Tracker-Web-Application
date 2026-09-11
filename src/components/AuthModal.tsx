@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, User as UserIcon, Coins, KeyRound, ShieldCheck, Check } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, Coins, ShieldCheck, Check, AlertTriangle, Bell } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DEFAULT_USER } from '../data/initialData';
 
@@ -10,7 +10,8 @@ export const AuthModal: React.FC = () => {
     user, 
     setUser, 
     language, 
-    showNotification 
+    showNotification,
+    updateBudget
   } = useApp();
 
   const [mode, setMode] = useState<'profile' | 'login' | 'register'>('profile');
@@ -19,24 +20,26 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [currency, setCurrency] = useState(user.currency || '₼');
   const [monthlyBudget, setMonthlyBudget] = useState(user.monthlyBudget.toString());
+  const [warningThreshold, setWarningThreshold] = useState<number>(user.budgetWarningThreshold ?? 80);
+  const [enableAlerts, setEnableAlerts] = useState<boolean>(user.enableBudgetAlerts ?? true);
 
   if (!isAuthModalOpen) return null;
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    const budgetVal = parseFloat(monthlyBudget) || 1500;
     const updatedUser = {
       ...user,
       name: name.trim() || user.name,
       email: email.trim() || user.email,
       currency,
-      monthlyBudget: parseFloat(monthlyBudget) || 1500,
+      monthlyBudget: budgetVal,
+      budgetWarningThreshold: warningThreshold,
+      enableBudgetAlerts: enableAlerts,
     };
     setUser(updatedUser);
+    updateBudget(budgetVal, warningThreshold, enableAlerts);
     setIsAuthModalOpen(false);
-    showNotification(
-      language === 'az' ? 'İstifadəçi profili yeniləndi' : 'Profile updated successfully',
-      'success'
-    );
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -52,7 +55,7 @@ export const AuthModal: React.FC = () => {
     setUser(loggedUser);
     setIsAuthModalOpen(false);
     showNotification(
-      language === 'az' ? `Xoş gəldiniz, ${loggedUser.name}! (JWT Token yaradıldı)` : `Welcome back, ${loggedUser.name}!`,
+      language === 'az' ? `Xoş gəldiniz, ${loggedUser.name}!` : `Welcome back, ${loggedUser.name}!`,
       'success'
     );
   };
@@ -77,11 +80,6 @@ export const AuthModal: React.FC = () => {
       'success'
     );
   };
-
-  // Mock JWT Token inspection
-  const mockJwtToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + 
-    btoa(JSON.stringify({ sub: user.id, name: user.name, email: user.email, exp: 1789032000 })) + 
-    ".s8B_K4f9d2L30_expenseTrackerTokenSignature";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -203,19 +201,37 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* JWT Bearer Visualizer */}
-              <div className="bg-slate-900 text-slate-300 p-3.5 rounded-2xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    <KeyRound className="w-3.5 h-3.5" />
-                    ASP.NET Core JWT Token
+              {/* Warning Threshold & Alert Toggle */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{language === 'az' ? 'Büdcə Xəbərdarlıq Həddi' : 'Budget Warning Threshold'}</span>
                   </span>
-                  <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
-                    Active Session
-                  </span>
+                  <select
+                    value={warningThreshold}
+                    onChange={e => setWarningThreshold(Number(e.target.value))}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700"
+                  >
+                    <option value={70}>70%</option>
+                    <option value={75}>75%</option>
+                    <option value={80}>80% (Standart)</option>
+                    <option value={85}>85%</option>
+                    <option value={90}>90%</option>
+                  </select>
                 </div>
-                <div className="font-mono text-[10px] text-indigo-300 break-all bg-slate-950 p-2 rounded-lg">
-                  {mockJwtToken.substring(0, 75)}...
+
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
+                  <span className="text-slate-600 flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>{language === 'az' ? 'Xərc zamanı anlıq xəbərdarlıq' : 'Instant warning on expense'}</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={enableAlerts}
+                    onChange={e => setEnableAlerts(e.target.checked)}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                  />
                 </div>
               </div>
 
@@ -255,10 +271,6 @@ export const AuthModal: React.FC = () => {
                   placeholder="••••••••"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-200 outline-none"
                 />
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
-                <span className="font-bold">C# API Endpoint:</span> <code className="font-mono text-indigo-600 font-semibold">[HttpPost("api/auth/login")]</code>
               </div>
 
               <button

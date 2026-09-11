@@ -1,6 +1,6 @@
 {
   "name": "Expense Tracker Web Application",
-  "description": "Full-stack Expense Tracker to manage income, expenses, financial reports, and C# ASP.NET Core Web API integration.",
+  "description": "Comprehensive personal expense and income tracker with smart monthly budget limit notifications and financial analytics.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
