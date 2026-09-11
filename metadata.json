@@ -1,0 +1,6 @@
+{
+  "name": "Expense Tracker Web Application",
+  "description": "Full-stack Expense Tracker to manage income, expenses, financial reports, and C# ASP.NET Core Web API integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
